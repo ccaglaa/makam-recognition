@@ -6,6 +6,7 @@ from makam.features import (
     fold_to_octave,
     hz_to_cents,
     pitch_class_histogram,
+    top_peak_cents,
 )
 
 
@@ -35,6 +36,25 @@ def test_histogram_sums_to_one_and_peaks_at_the_note():
     assert hist.sum() == pytest.approx(1.0)
     peak = bin_centers(7.5)[np.argmax(hist)]
     assert abs(peak - 702.0) <= 7.5
+
+
+def test_zero_hz_never_reaches_the_histogram():
+    # Adding silence (0 Hz) must not change the histogram at all
+    with_silence = hz_to_cents(np.array([0.0, 330.0, 0.0, 0.0]), tonic_hz=220.0)
+    without = hz_to_cents(np.array([330.0]), tonic_hz=220.0)
+    np.testing.assert_allclose(pitch_class_histogram(with_silence), pitch_class_histogram(without))
+
+
+def test_all_silent_track_gives_empty_histogram_not_a_crash():
+    hist = pitch_class_histogram(hz_to_cents(np.zeros(10), tonic_hz=220.0))
+    assert hist.sum() == 0
+
+
+def test_top_peak_ignores_the_tonic():
+    # Big peak on the tonic, smaller one on the fourth (498 cents)
+    cents = np.concatenate([np.full(900, 0.0), np.full(100, 498.0)])
+    hist = pitch_class_histogram(cents, bin_width=7.5)
+    assert abs(top_peak_cents(hist, bin_width=7.5) - 498.0) <= 7.5
 
 
 def test_smoothing_wraps_around_the_octave():

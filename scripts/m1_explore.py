@@ -1,10 +1,10 @@
-"""M1 — explore the dataset: stats, a melody contour, pitch-class histograms.
+"""M1 — explore the dataset: stats, a melody contour, pitch-class histograms
 
 Usage:
     python scripts/m1_explore.py --data ../otmm_makam_recognition_dataset
 
-Outputs go to figures/ and the stats are printed.
-The first run parses 1,000 text files (a few minutes); later runs use the cache.
+Outputs go to figures/ and the stats are printed 
+The first run parses 1,000 text files (a few minutes); later runs use the cache
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from makam.data import HOP_SECONDS, load_pitch, load_recordings
-from makam.features import bin_centers, hz_to_cents, pitch_class_histogram
+from makam.features import bin_centers, hz_to_cents, pitch_class_histogram, top_peak_cents
 
 BIN_WIDTH = 7.5
 
@@ -38,7 +38,7 @@ def print_stats(recordings, pitches) -> None:
           f"(min {durations_min.min():.1f}, max {durations_min.max():.1f})")
     print(f"Voiced fraction: median {np.median(voiced):.0%}")
 
-    # --- Leakage check: does the same composition / performer appear several times?
+    # leakage check: does the same composition/performer appear several times?
     work_counts = Counter(w for r in recordings for w in r.works)
     artist_counts = Counter(a for r in recordings for a in r.artists)
     repeated_works = {w: c for w, c in work_counts.items() if c > 1}
@@ -54,7 +54,7 @@ def print_stats(recordings, pitches) -> None:
 
 
 def plot_contour(rec, pitch, out: Path, start_s: float = 30, length_s: float = 20) -> None:
-    """Melody of one recording in cents vs. time, with piano semitones as dotted lines."""
+    """Melody of one recording in cents vs. time, with piano semitones as dotted lines"""
     i0, i1 = int(start_s / HOP_SECONDS), int((start_s + length_s) / HOP_SECONDS)
     segment = pitch[i0:i1]
     t = start_s + np.arange(len(segment)) * HOP_SECONDS
@@ -76,7 +76,7 @@ def plot_contour(rec, pitch, out: Path, start_s: float = 30, length_s: float = 2
 
 
 def mean_histograms(recordings, pitches) -> dict[str, np.ndarray]:
-    """Average pitch-class histogram per makam."""
+    """Average pitch-class histogram per makam"""
     per_makam: dict[str, list[np.ndarray]] = {}
     for rec, p in zip(recordings, pitches):
         h = pitch_class_histogram(hz_to_cents(p, rec.tonic_hz), bin_width=BIN_WIDTH)
@@ -86,7 +86,9 @@ def mean_histograms(recordings, pitches) -> dict[str, np.ndarray]:
 
 def plot_makam_comparison(means: dict[str, np.ndarray], makams: list[str], out: Path) -> None:
     x = bin_centers(BIN_WIDTH)
-    fig, axes = plt.subplots(len(makams), 1, figsize=(11, 2.2 * len(makams)), sharex=True)
+    fig, axes = plt.subplots(len(makams), 1, figsize=(11, 2.2 * len(makams)), sharex=True,
+                             squeeze=False)  # always a 2-D array, even for 1 makam
+    axes = axes[:, 0]
     for ax, m in zip(axes, makams):
         for c in range(0, 1201, 100):
             ax.axvline(c, color="0.85", lw=0.6, ls=":", zorder=0)
@@ -116,11 +118,21 @@ def plot_all_makams_heatmap(means: dict[str, np.ndarray], out: Path) -> None:
     plt.close(fig)
 
 
+def print_top_peaks(means: dict[str, np.ndarray]) -> None:
+    """Exercise 2: the strongest non-tonic note of each makam, sorted by position"""
+    peaks = {m: top_peak_cents(h, bin_width=BIN_WIDTH) for m, h in means.items()}
+    print("\nStrongest note after the tonic (cents above tonic):")
+    for makam, cents in sorted(peaks.items(), key=lambda kv: kv[1]):
+        print(f"  {makam:<16} {cents:7.1f}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", required=True, help="path to otmm_makam_recognition_dataset")
     parser.add_argument("--cache", default="cache", help="folder for fast .npy copies")
     parser.add_argument("--out", default="figures")
+    parser.add_argument("--compare", nargs="+", default=["Rast", "Mahur", "Ussak", "Hicaz"],
+                        help="makams to plot side by side, e.g. --compare Saba Segah")
     args = parser.parse_args()
 
     out = Path(args.out)
@@ -135,8 +147,15 @@ def main() -> None:
     plot_contour(recordings[example], pitches[example], out / "m1_contour_rast.png")
 
     means = mean_histograms(recordings, pitches)
-    plot_makam_comparison(means, ["Rast", "Mahur", "Ussak", "Hicaz"], out / "m1_four_makams.png")
+
+    unknown = [m for m in args.compare if m not in means]
+    if unknown:
+        raise SystemExit(f"Unknown makam(s): {unknown}. Choose from: {', '.join(means)}")
+    name = "m1_compare_" + "_".join(args.compare) + ".png"
+    plot_makam_comparison(means, args.compare, out / name)
+
     plot_all_makams_heatmap(means, out / "m1_all_makams.png")
+    print_top_peaks(means)
     print(f"Figures written to {out}/")
 
 

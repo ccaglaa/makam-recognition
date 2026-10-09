@@ -1,4 +1,4 @@
-"""Loading the OTMM Makam Recognition Dataset.
+"""Loading the OTMM Makam Recognition Dataset
 
 The dataset folder (cloned from GitHub) looks like:
 
@@ -7,8 +7,8 @@ The dataset folder (cloned from GitHub) looks like:
         data/<Makam>/<id>.pitch   # predominant melody: one frequency (Hz) per line
         data/<Makam>/<id>.json    # MusicBrainz metadata (works, artists, form...)
 
-A pitch value of 0.0 means "no melody detected here" (silence, percussion...).
-Consecutive values are 0.0029 s apart (HOP_SECONDS).
+A pitch value of 0.0 means "no melody detected here" (silence, percussion...)
+Consecutive values are 0.0029 s apart (HOP_SECONDS)
 """
 
 from __future__ import annotations
@@ -19,24 +19,24 @@ from pathlib import Path
 
 import numpy as np
 
-HOP_SECONDS = 128 / 44100  # ≈ 0.0029 s between two pitch samples
+HOP_SECONDS = 128 / 44100  # ar. 0.0029 s between two pitch samples
 
 
 @dataclass(frozen=True)
 class Recording:
-    """Everything we know about one recording, except the (large) pitch track."""
+    """Everything we know about one recording, except the (large) pitch track"""
 
     mbid: str            # MusicBrainz recording id = file name
     makam: str           # the label we want to predict
     tonic_hz: float      # annotated tonic frequency
     pitch_path: Path
-    works: tuple[str, ...] = field(default=())    # composition ids (for leakage checks)
-    artists: tuple[str, ...] = field(default=())  # performer ids (for leakage checks)
+    works: tuple[str, ...] = field(default=())    # composition ids 
+    artists: tuple[str, ...] = field(default=())  # performer ids 
     instrumentation: str = ""
 
 
 def load_recordings(dataset_dir: str | Path) -> list[Recording]:
-    """Read annotations.json + per-recording metadata. Does NOT load pitch tracks."""
+    """Read annotations.json + per-recording metadata. Does NOT load pitch tracks"""
     dataset_dir = Path(dataset_dir)
     with open(dataset_dir / "annotations.json", encoding="utf-8") as f:
         annotations = json.load(f)
@@ -64,10 +64,10 @@ def load_recordings(dataset_dir: str | Path) -> list[Recording]:
 
 
 def load_pitch(recording: Recording, cache_dir: str | Path | None = None) -> np.ndarray:
-    """Return the pitch track in Hz (float32, zeros kept).
+    """Return the pitch track in Hz (float32)
 
     Parsing text is slow, so if cache_dir is given we save a binary .npy copy
-    the first time and reuse it afterwards.
+    the first time and reuse it afterwards
     """
     if cache_dir is not None:
         cache_path = Path(cache_dir) / f"{recording.mbid}.npy"
