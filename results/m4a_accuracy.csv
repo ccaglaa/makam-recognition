@@ -1,0 +1,5 @@
+features,n_features,grouped_mean,grouped_std
+"F0 folded (no order, no register)",160,0.7318,0.0453
+F1 3 octaves (register),240,0.7168,0.0378
+F2 folded per third (order),240,0.7739,0.0430
+F3 3 octaves per third (both),720,0.7339,0.0459

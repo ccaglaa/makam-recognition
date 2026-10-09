@@ -16,6 +16,7 @@ cents = 1200 * log2(f / tonic)
 from __future__ import annotations
 
 import numpy as np
+from scipy.ndimage import gaussian_filter1d
 
 OCTAVE_CENTS = 1200.0
 
@@ -85,6 +86,52 @@ def top_peak_cents(
     distance_to_tonic = np.minimum(centers, OCTAVE_CENTS - centers)  # circular distance
     masked = np.where(distance_to_tonic > exclude_around_tonic, hist, -np.inf)
     return float(centers[np.argmax(masked)])
+
+
+def normalize_octave(cents: np.ndarray, window_low: float = -200.0) -> np.ndarray:
+    """Shift the whole melody by whole octaves so its median lands in [window_low, window_low + 1200)
+
+    For ar. a quarter of the recordings the annotated tonic is one octave away
+    from the melody (choirs, ensembles, men and women singing the same piece)
+    The shift is the same for every note, so intervals and contour are kept,
+    and it only uses the recording itself, never its label
+    """
+    if len(cents) == 0:
+        return cents
+    octaves = np.floor((np.median(cents) - window_low) / OCTAVE_CENTS)
+    return cents - octaves * OCTAVE_CENTS
+
+
+def register_histogram(
+    cents: np.ndarray,
+    low: float = -1200.0,
+    high: float = 2400.0,
+    bin_width: float = 15.0,
+    smoothing_cents: float | None = 15.0,
+) -> np.ndarray:
+    """Histogram over 3 octaves WITHOUT folding, so high and low notes stay apart
+
+    Same idea as pitch_class_histogram, but on a line instead of a circle:
+    notes outside [low, high) are dropped and the smoothing does not wrap
+    """
+    n_bins = int(round((high - low) / bin_width))
+    hist, _ = np.histogram(cents, bins=n_bins, range=(low, high))
+    hist = hist.astype(np.float64)
+    if smoothing_cents:
+        hist = gaussian_filter1d(hist, sigma=smoothing_cents / bin_width, mode="constant")
+    total = hist.sum()
+    return hist / total if total > 0 else hist
+
+
+def section_histograms(cents: np.ndarray, n_sections: int, hist_fn) -> np.ndarray:
+    """Cut the melody into n_sections equal parts in time order, one histogram each
+
+    This is the simplest way to give a histogram some sense of ORDER: the
+    beginning, middle and end of a piece are described separately
+    hist_fn is any function cents -> histogram, e.g. pitch_class_histogram
+    """
+    parts = np.array_split(cents, n_sections)  # keeps time order, sizes differ by at most 1
+    return np.concatenate([hist_fn(part) for part in parts])
 
 
 def _circular_gaussian_smooth(hist: np.ndarray, sigma_bins: float) -> np.ndarray:

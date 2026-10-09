@@ -5,7 +5,10 @@ from makam.features import (
     bin_centers,
     fold_to_octave,
     hz_to_cents,
+    normalize_octave,
     pitch_class_histogram,
+    register_histogram,
+    section_histograms,
     top_peak_cents,
 )
 
@@ -67,3 +70,31 @@ def test_smoothing_wraps_around_the_octave():
     # A note right at the tonic should leak into the LAST bins too (circularity)
     hist = pitch_class_histogram(np.full(100, 1.0), bin_width=7.5, smoothing_cents=15)
     assert hist[-1] > 0.01
+
+
+def test_normalize_octave_moves_whole_octaves_only():
+    melody = np.array([-1200.0, -1000.0, -700.0])  # sung an octave below the usual register
+    shifted = normalize_octave(melody)
+    np.testing.assert_allclose(shifted, melody + 1200)  # same shape, one octave up
+    assert -200 <= np.median(shifted) < 1000
+
+
+def test_normalize_octave_keeps_melodies_already_in_the_window():
+    melody = np.array([0.0, 200.0, 700.0])
+    np.testing.assert_allclose(normalize_octave(melody), melody)
+
+
+def test_register_histogram_keeps_octaves_apart():
+    low = register_histogram(np.full(100, 0.0), smoothing_cents=None)
+    high = register_histogram(np.full(100, 1200.0), smoothing_cents=None)
+    assert low.sum() == pytest.approx(1.0)
+    assert not np.allclose(low, high)  # a folded histogram would make these identical
+
+
+def test_section_histograms_follow_time_order():
+    # first half on the tonic, second half on the fifth
+    cents = np.concatenate([np.full(50, 0.0), np.full(50, 700.0)])
+    feats = section_histograms(cents, 2, lambda c: pitch_class_histogram(c, smoothing_cents=None))
+    first, second = feats[:160], feats[160:]
+    assert np.argmax(first) == 0
+    assert abs(bin_centers()[np.argmax(second)] - 700) <= 7.5

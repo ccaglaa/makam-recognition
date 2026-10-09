@@ -13,10 +13,12 @@ recording i and training recording (or template) j
 
 from __future__ import annotations
 
+import warnings
 from collections import Counter
 
 import numpy as np
 from scipy.spatial.distance import cdist
+from sklearn.linear_model import LogisticRegressionCV
 
 METRICS = ("l1", "l2", "bhattacharyya")
 
@@ -55,6 +57,28 @@ def knn_predict(dist: np.ndarray, train_labels: np.ndarray, k: int) -> np.ndarra
         # first label in distance order that reaches the best count
         predictions.append(next(lab for lab in labels if counts[lab] == best))
     return np.array(predictions)
+
+
+def logreg_predict(
+    train_x: np.ndarray, train_y: np.ndarray, test_x: np.ndarray, seed: int = 0
+) -> np.ndarray:
+    """Logistic regression on square-rooted histograms, regularization chosen inside the training fold
+
+    sqrt first: Euclidean distance between sqrt(p) and sqrt(q) is the Hellinger
+    distance, a close cousin of Bhattacharyya, so a linear model on sqrt
+    features works with the geometry that already worked best in M2
+    LogisticRegressionCV picks C with an inner 5-fold CV on the TRAINING data
+    only, so the test fold never influences the choice
+    """
+    model = LogisticRegressionCV(
+        Cs=[1.0, 10.0, 100.0, 1000.0], cv=5, scoring="accuracy", max_iter=5000,
+        random_state=seed, n_jobs=-1,  # inner CV folds run in parallel on all cores
+    )
+    with warnings.catch_warnings():
+        # recent scikit-learn versions announce future default changes here, nothing is wrong
+        warnings.simplefilter("ignore", FutureWarning)
+        model.fit(np.sqrt(train_x), train_y)
+    return model.predict(np.sqrt(test_x))
 
 
 def fit_templates(train_hists: np.ndarray, train_labels: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

@@ -1,7 +1,7 @@
 # Makam Recognition
 
 Recognizing the makam (melodic mode) of Ottoman-Turkish music recordings from their melody.
-Work in progress, milestone M3 (unknown tonic).
+Work in progress, milestone M4 (does melodic order help?).
 
 ## Setup (Mac M1)
 
@@ -19,6 +19,7 @@ pytest -q
 python scripts/m1_explore.py --data ../otmm_makam_recognition_dataset
 python scripts/m2_baseline.py --data ../otmm_makam_recognition_dataset
 python scripts/m3_unknown_tonic.py --data ../otmm_makam_recognition_dataset
+python scripts/m4a_order_register.py --data ../otmm_makam_recognition_dataset
 ```
 
 The first run parses 1,000 text files and saves binary copies in `cache/`; later runs are faster.
@@ -34,6 +35,7 @@ src/makam/tonic.py      tonic estimation by rotating histograms against template
 scripts/m1_explore.py   dataset stats + figures in figures/
 scripts/m2_baseline.py  accuracy table (results/m2_accuracy.csv) + confusion matrix
 scripts/m3_unknown_tonic.py  tonic and makam without a given tonic + tonic error plot
+scripts/m4a_order_register.py  register vs melodic order, logistic regression (ar. 5 to 15 min)
 tests/                  unit tests
 ```
 
@@ -76,3 +78,25 @@ Losing the tonic costs ar. 6 points of makam accuracy (73.0% -> 66.9%).
 Most wrong tonics are off by a fourth or a fifth (the most prominent non-tonic notes).
 The makam annotations' tonics agree with the corrected `otmm_tonic_dataset` within
 16 cents for all 998 shared recordings, so we keep them.
+
+## Does order help? (M4a, tonic known, logistic regression, grouped CV, seed 0)
+
+The histogram throws away WHEN notes happen (the seyir, the melodic path of a makam)
+and, once folded, WHERE in the register they happen. Same classifier, four inputs:
+
+| Input | Order | Register | Accuracy |
+|---|---|---|---|
+| F0 folded histogram (M2 input) | no | no | 73.3% |
+| F1 3-octave histogram | no | yes | 71.8% |
+| F2 folded histogram per third of the piece | yes | no | **77.4%** |
+| F3 3-octave histogram per third | yes | yes | 73.4% |
+
+Order helps: F2 beats F0 by +4.1 (seed 0), +3.1 (seed 1) and +3.7 points (seed 2),
+winning 7 to 8 of 10 folds. Register does not help, and adding it to order hurts
+(720 features for 900 training recordings). The biggest gains are on the pairs the
+histogram confuses: Ussak 44% -> 62%, Muhayyer 56% -> 72%, Nihavent 54% -> 70%.
+
+For ar. a quarter of recordings the annotated tonic is one octave away from the
+melody. Folded features never noticed; register features normalize the octave
+from the melody itself (`normalize_octave`).
+Results can move by a few tenths of a point between machines (parallel solver).
