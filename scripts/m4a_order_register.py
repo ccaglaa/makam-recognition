@@ -3,12 +3,13 @@
 Usage:
     python scripts/m4a_order_register.py --data ../otmm_makam_recognition_dataset
 
-Four inputs, same classifier (logistic regression), same grouped 10 folds as M2
+Six inputs, same classifier (logistic regression), same grouped 10 folds as M2
   F0 folded pitch-class histogram         no order, no register (the M2 input)
   F1 3-octave histogram                   no order, register
   F2 folded histogram per third of piece  order, no register
   F3 3-octave histogram per third         order and register
-Tonic known (as in M2). Takes ar. 5 to 10 minutes
+  F4 / F5 folded histogram of the last / first third only
+Tonic known (as in M2). Takes ar. 5 to 15 minutes
 """
 
 from __future__ import annotations
@@ -42,6 +43,9 @@ def build_feature_sets(cents_per_recording):
         "F1 3 octaves (register)": register_histogram,
         "F2 folded per third (order)": lambda c: section_histograms(c, N_SECTIONS, folded_15),
         "F3 3 octaves per third (both)": lambda c: section_histograms(c, N_SECTIONS, register_histogram),
+        # Exercise: one third of the piece only. Which part says the most about the makam?
+        "F4 folded, last third only": lambda c: folded_15(np.array_split(c, N_SECTIONS)[-1]),
+        "F5 folded, first third only": lambda c: folded_15(np.array_split(c, N_SECTIONS)[0]),
     }
     return {name: np.stack([fn(c) for c in cents_per_recording]) for name, fn in feature_fns.items()}
 

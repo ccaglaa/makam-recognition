@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
-from makam.classify import distance_matrix, fit_templates, knn_predict, logreg_predict, template_predict
+from makam.classify import distance_matrix, fit_templates, knn_predict, logreg_predict, logreg_proba, template_predict
 from makam.data import Recording
 from makam.evaluate import composition_groups, cross_validate, per_class_accuracy
 
@@ -91,3 +91,12 @@ def test_logreg_learns_two_easy_classes():
     y = np.array(["A"] * 30 + ["B"] * 30)
     pred = logreg_predict(x, y, np.array([[0.9, 0.05, 0.05], [0.05, 0.05, 0.9]]))
     assert list(pred) == ["A", "B"]
+
+
+def test_logreg_proba_rows_sum_to_one_and_classes_sorted():
+    rng = np.random.default_rng(1)
+    x = np.vstack([rng.dirichlet([20, 1, 1], size=20), rng.dirichlet([1, 1, 20], size=20)])
+    y = np.array(["B"] * 20 + ["A"] * 20)
+    classes, proba = logreg_proba(x, y, x[:3])
+    assert list(classes) == ["A", "B"]
+    np.testing.assert_allclose(proba.sum(axis=1), 1.0)

@@ -20,6 +20,11 @@ python scripts/m1_explore.py --data ../otmm_makam_recognition_dataset
 python scripts/m2_baseline.py --data ../otmm_makam_recognition_dataset
 python scripts/m3_unknown_tonic.py --data ../otmm_makam_recognition_dataset
 python scripts/m4a_order_register.py --data ../otmm_makam_recognition_dataset
+
+# 4. neural network (M4b), needs PyTorch
+pip install -e ".[dl]"
+python scripts/m4b_cnn.py --data ../otmm_makam_recognition_dataset --quick
+python scripts/m4b_cnn.py --data ../otmm_makam_recognition_dataset
 ```
 
 The first run parses 1,000 text files and saves binary copies in `cache/`; later runs are faster.
@@ -32,10 +37,13 @@ src/makam/features.py   Hz -> cents, octave folding, pitch-class histograms
 src/makam/classify.py   distances, kNN and nearest-template classifiers
 src/makam/evaluate.py   composition groups, stratified and grouped cross-validation
 src/makam/tonic.py      tonic estimation by rotating histograms against templates
+src/makam/sequence.py   pitch-class-gram: the melody as a (pitch bins x time) array
+src/makam/cnn.py        1D CNN and its training loop (PyTorch)
 scripts/m1_explore.py   dataset stats + figures in figures/
 scripts/m2_baseline.py  accuracy table (results/m2_accuracy.csv) + confusion matrix
 scripts/m3_unknown_tonic.py  tonic and makam without a given tonic + tonic error plot
 scripts/m4a_order_register.py  register vs melodic order, logistic regression (ar. 5 to 15 min)
+scripts/m4b_cnn.py      1D CNN on the melody in time order, same folds
 tests/                  unit tests
 ```
 
@@ -100,3 +108,16 @@ For ar. a quarter of recordings the annotated tonic is one octave away from the
 melody. Folded features never noticed; register features normalize the octave
 from the melody itself (`normalize_octave`).
 Results can move by a few tenths of a point between machines (parallel solver).
+
+Which part of the piece matters (same classifier, 15-cent folded histograms):
+
+| Input | Accuracy |
+|---|---|
+| Whole piece, one histogram | 72.6% |
+| Last third only | 61.4% |
+| First third only | **77.4%** |
+| 2 / 3 / 5 / 10 sections | 74.3% / 77.4% / 77.7% / 75.8% |
+
+The opening carries the information, the ending does not: every makam ends on its
+tonic (the karar), so endings look alike once measured from the tonic. More sections
+help up to 3 to 5, then the feature count (800 for 10 sections) starts to overfit.

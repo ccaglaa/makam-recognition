@@ -59,11 +59,12 @@ def knn_predict(dist: np.ndarray, train_labels: np.ndarray, k: int) -> np.ndarra
     return np.array(predictions)
 
 
-def logreg_predict(
+def logreg_proba(
     train_x: np.ndarray, train_y: np.ndarray, test_x: np.ndarray, seed: int = 0
-) -> np.ndarray:
+) -> tuple[np.ndarray, np.ndarray]:
     """Logistic regression on square-rooted histograms, regularization chosen inside the training fold
 
+    Returns (class_labels, probabilities of shape (n_test, n_classes)), classes sorted
     sqrt first: Euclidean distance between sqrt(p) and sqrt(q) is the Hellinger
     distance, a close cousin of Bhattacharyya, so a linear model on sqrt
     features works with the geometry that already worked best in M2
@@ -78,7 +79,15 @@ def logreg_predict(
         # recent scikit-learn versions announce future default changes here, nothing is wrong
         warnings.simplefilter("ignore", FutureWarning)
         model.fit(np.sqrt(train_x), train_y)
-    return model.predict(np.sqrt(test_x))
+    return model.classes_, model.predict_proba(np.sqrt(test_x))
+
+
+def logreg_predict(
+    train_x: np.ndarray, train_y: np.ndarray, test_x: np.ndarray, seed: int = 0
+) -> np.ndarray:
+    """Most probable class for each test row (see logreg_proba)"""
+    classes, proba = logreg_proba(train_x, train_y, test_x, seed)
+    return classes[np.argmax(proba, axis=1)]
 
 
 def fit_templates(train_hists: np.ndarray, train_labels: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
