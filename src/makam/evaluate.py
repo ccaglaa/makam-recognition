@@ -76,3 +76,14 @@ def cross_validate(
         predictions[test_idx] = pred
         fold_accuracies.append(np.mean(pred == labels[test_idx]))
     return np.array(fold_accuracies), predictions
+
+
+def per_class_accuracy(labels: np.ndarray, predictions: np.ndarray) -> dict[str, float]:
+    """For each makam, the fraction of its recordings that were predicted correctly
+
+    This is the diagonal of the confusion matrix divided by the row totals
+    """
+    return {
+        str(makam): float(np.mean(predictions[labels == makam] == makam))
+        for makam in np.unique(labels)
+    }

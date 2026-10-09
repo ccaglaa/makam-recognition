@@ -4,7 +4,7 @@ import numpy as np
 
 from makam.classify import distance_matrix, fit_templates, knn_predict, template_predict
 from makam.data import Recording
-from makam.evaluate import composition_groups, cross_validate
+from makam.evaluate import composition_groups, cross_validate, per_class_accuracy
 
 P = np.array([[0.5, 0.5, 0.0], [0.0, 0.5, 0.5]])
 
@@ -74,3 +74,10 @@ def test_grouped_cv_never_splits_a_group():
     acc, _ = cross_validate(hists, labels, spy, groups=groups, n_splits=5)
     assert len(acc) == 5
     assert sorted(tested) == list(range(80))  # every recording tested exactly once
+
+
+def test_per_class_accuracy_by_hand():
+    labels = np.array(["A", "A", "A", "B", "B"])
+    preds = np.array(["A", "B", "A", "B", "B"])
+    acc = per_class_accuracy(labels, preds)
+    assert acc == {"A": 2 / 3, "B": 1.0}

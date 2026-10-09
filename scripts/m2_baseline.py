@@ -23,10 +23,9 @@ import numpy as np
 
 from makam.classify import METRICS, distance_matrix, fit_templates, knn_predict, template_predict
 from makam.data import load_pitch, load_recordings
-from makam.evaluate import composition_groups, cross_validate
+from makam.evaluate import composition_groups, cross_validate, per_class_accuracy
 from makam.features import hz_to_cents, pitch_class_histogram
 
-BIN_WIDTH = 7.5
 K_VALUES = (1, 3, 5, 10, 15)
 
 
@@ -74,13 +73,15 @@ def main() -> None:
     parser.add_argument("--data", required=True)
     parser.add_argument("--cache", default="cache")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--bin-width", type=float, default=7.5,
+                        help="histogram resolution in cents (7.5 = 160 bins per octave)")
     args = parser.parse_args()
     Path("figures").mkdir(exist_ok=True)
     Path("results").mkdir(exist_ok=True)
 
     recordings = load_recordings(args.data)
     hists = np.stack([
-        pitch_class_histogram(hz_to_cents(load_pitch(r, cache_dir=args.cache), r.tonic_hz), BIN_WIDTH)
+        pitch_class_histogram(hz_to_cents(load_pitch(r, cache_dir=args.cache), r.tonic_hz), args.bin_width)
         for r in recordings
     ])
     labels = np.array([r.makam for r in recordings])
@@ -116,6 +117,10 @@ def main() -> None:
     print("Most confused pairs (both directions counted):")
     for (a, b), n in confusions.most_common(8):
         print(f"  {a:<16} <-> {b:<16} {n}")
+
+    print("\nAccuracy per makam, worst first:")
+    for makam, acc in sorted(per_class_accuracy(labels, pred_g).items(), key=lambda kv: kv[1]):
+        print(f"  {makam:<16} {acc:6.0%}")
 
 
 if __name__ == "__main__":
