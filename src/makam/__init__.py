@@ -1,1 +1,1 @@
-"""Makam recognition on the OTMM dataset."""
+"""Makam recognition on the OTMM dataset"""

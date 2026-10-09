@@ -98,4 +98,7 @@ def _circular_gaussian_smooth(hist: np.ndarray, sigma_bins: float) -> np.ndarray
     offsets = np.minimum(offsets, n - offsets)  # circular distance to bin 0
     kernel = np.exp(-0.5 * (offsets / sigma_bins) ** 2)
     kernel /= kernel.sum()
-    return np.real(np.fft.ifft(np.fft.fft(hist) * np.fft.fft(kernel)))
+    smoothed = np.real(np.fft.ifft(np.fft.fft(hist) * np.fft.fft(kernel)))
+    # FFT round-off leaves tiny negatives (ar. -1e-18) in empty regions
+    # A histogram can't be negative, and sqrt or log of a negative gives NaN later on
+    return np.maximum(smoothed, 0.0)

@@ -57,6 +57,12 @@ def test_top_peak_ignores_the_tonic():
     assert abs(top_peak_cents(hist, bin_width=7.5) - 498.0) <= 7.5
 
 
+def test_smoothed_histogram_is_never_negative():
+    # Two narrow notes leave large empty regions where FFT round-off used to go below 0
+    cents = np.concatenate([np.full(1000, 0.0), np.full(10, 700.0)])
+    assert (pitch_class_histogram(cents, smoothing_cents=7.5) >= 0).all()
+
+
 def test_smoothing_wraps_around_the_octave():
     # A note right at the tonic should leak into the LAST bins too (circularity)
     hist = pitch_class_histogram(np.full(100, 1.0), bin_width=7.5, smoothing_cents=15)

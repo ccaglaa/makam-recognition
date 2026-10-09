@@ -1,4 +1,4 @@
-"""M1 — explore the dataset: stats, a melody contour, pitch-class histograms
+"""M1: explore the dataset: stats, a melody contour, pitch-class histograms
 
 Usage:
     python scripts/m1_explore.py --data ../otmm_makam_recognition_dataset
