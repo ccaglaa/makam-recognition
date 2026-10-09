@@ -1,8 +1,8 @@
-<p align="center">
-  <img src="figures/banner.jpg" width="100%" alt="Illustration of a rising melody on a stylized staff">
-</p>
-
 # Makam Recognition
+
+<p align="center">
+  <img src="figures/banner.jpg" width="560" alt="Illustration of a rising melody on a stylized staff">
+</p>
 
 **Recognizing the melodic mode of Ottoman-Turkish music from the melody alone, and finding out which part of the melody gives it away.**
 
