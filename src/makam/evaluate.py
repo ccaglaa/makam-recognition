@@ -49,6 +49,27 @@ def composition_groups(recordings: list[Recording]) -> np.ndarray:
     return group_ids
 
 
+def cv_splits(
+    labels: np.ndarray,
+    groups: np.ndarray | None = None,
+    n_splits: int = 10,
+    seed: int = 0,
+):
+    """Yield (train_idx, test_idx) for each fold
+
+    groups=None -> stratified folds, otherwise grouped and stratified folds
+    Same labels, groups and seed -> same folds, so different milestones are
+    evaluated on exactly the same splits
+    """
+    dummy_x = np.zeros((len(labels), 1))  # the splitters only look at labels and groups
+    if groups is None:
+        splitter = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        yield from splitter.split(dummy_x, labels)
+    else:
+        splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        yield from splitter.split(dummy_x, labels, groups)
+
+
 def cross_validate(
     hists: np.ndarray,
     labels: np.ndarray,
@@ -62,16 +83,9 @@ def cross_validate(
     groups=None -> stratified folds, otherwise grouped and stratified folds
     Every recording is predicted exactly once, by a model that never saw it
     """
-    if groups is None:
-        splitter = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
-        splits = splitter.split(hists, labels)
-    else:
-        splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
-        splits = splitter.split(hists, labels, groups)
-
     predictions = np.empty(len(labels), dtype=labels.dtype)
     fold_accuracies = []
-    for train_idx, test_idx in splits:
+    for train_idx, test_idx in cv_splits(labels, groups, n_splits, seed):
         pred = predictor(hists[train_idx], labels[train_idx], hists[test_idx])
         predictions[test_idx] = pred
         fold_accuracies.append(np.mean(pred == labels[test_idx]))
