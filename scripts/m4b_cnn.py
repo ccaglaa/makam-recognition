@@ -16,8 +16,9 @@ Printed for every fold
   F2    : the M4a logistic regression on per-third histograms, same fold
   both  : average of the CNN and F2 probabilities
 --region 0.333 trains and tests on windows from the first third only (the opening)
-First run: 40 epochs whole piece gave train 83.8%, test 71.9% (overfitting,
-and averaging all windows dilutes the informative opening)
+Results (40 epochs): whole piece train 83.8%, test 71.9% (overfitting, and
+averaging all windows dilutes the informative opening). Opening only: 71.0 to
+72.1%. CNN + F2: 78.6 to 79.7% vs F2 77.2 to 77.4% over seeds 0 to 2
 """
 
 from __future__ import annotations
@@ -121,7 +122,8 @@ def main() -> None:
     for makam in HARD_MAKAMS:
         print(f"  {makam:<14}" + "".join(f"{per_makam[c][makam]:8.0%}" for c in shown))
 
-    name = f"results/m4b_{epochs}ep_region{args.region:.2f}{'_ensemble' if args.ensemble else ''}.csv"
+    suffix = "_ensemble" if args.ensemble else ""
+    name = f"results/m4b_{epochs}ep_region{args.region:.2f}_seed{args.seed}{suffix}.csv"
     with open(name, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["fold"] + columns)

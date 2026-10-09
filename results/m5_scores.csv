@@ -1,0 +1,7 @@
+task,scores,recordings_cv
+Tonic found (within 25 cents),0.8051,96.1%
+"Makam, tonic given, F2",0.6924,77.4%
+"Makam, tonic unknown, template only",0.4967,66.9%
+"Makam, tonic unknown, template + F2",0.5572,-
+Makam and tonic both right,0.5481,65.9%
+"Balanced accuracy, tonic unknown + F2",0.6033,-
