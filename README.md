@@ -1,204 +1,154 @@
+<p align="center">
+  <img src="figures/banner.jpg" width="100%" alt="Illustration of a rising melody on a stylized staff">
+</p>
+
 # Makam Recognition
 
-Recognizing the makam (melodic mode) of Ottoman-Turkish music recordings from their melody.
-M1 to M5 done: baselines, unknown tonic, melodic order, a CNN, and a demo on unseen scores.
+**Recognizing the melodic mode of Ottoman-Turkish music from the melody alone, and finding out which part of the melody gives it away.**
 
-## Setup (Mac M1)
+![Python](https://img.shields.io/badge/python-3.10%2B-3776ab)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-classic%20ML-f7931e)
+![PyTorch](https://img.shields.io/badge/PyTorch-1D%20CNN-ee4c2c)
+![Data](https://img.shields.io/badge/data-CC%20BY--NC--SA%204.0-lightgrey)
+
+<p align="center">
+  <img src="figures/readme_results.png" width="760" alt="Accuracy of each model, from the published baseline at 71.8% to 79.0% for the CNN combined with per-third histograms">
+</p>
+
+## In 30 seconds
+
+A **makam** is the melodic framework of a piece of Turkish classical music: a set of notes, many of
+them *between* the keys of a piano, plus a typical path the melody follows (the *seyir*).
+This project classifies 20 makams from 1000 recorded performances and asks a simple question:
+**does the order of the notes matter, or only which notes are played?**
+
+* A pitch histogram (which notes, how long) reproduces the published baseline: **73.0%** vs 71.8%
+* Describing the beginning, middle and end separately raises it to **77.4%**, consistently over 3 random splits
+* **The first third of a piece alone is as informative as the whole piece**, the last third is the least informative
+* A 1D CNN alone overfits with 900 training recordings, but adds a small, consistent gain on top (**79.0%**)
+* Tested on 1206 written scores of compositions it never heard, accuracy drops to 56%, and its confidence stops being reliable
+
+## What a makam looks like
+
+<p align="center">
+  <img src="figures/m1_compare_Rast_Mahur_Ussak_Hicaz.png" width="760" alt="Average pitch histograms of four makams, with peaks between the piano semitones">
+</p>
+
+Each curve shows where the melody spends its time, in cents above the tonic (100 cents = one piano key).
+Many peaks fall **between** the dotted piano semitones: Rast's third sits at ar. 385 cents, Ussak's second
+at ar. 150. Rounding pitches to the piano grid costs **16 points** of accuracy.
+Rast and Mahur use almost the same notes, which is why order matters.
+
+## The main finding: the opening gives it away
+
+<p align="center">
+  <img src="figures/readme_opening.png" width="760" alt="Accuracy using the whole piece 72.6%, last third 61.4%, first third 77.4%, all three thirds 77.4%">
+</p>
+
+The same classifier, fed histograms of different parts of each piece. The ending is the least useful part:
+every makam resolves on its own tonic, so endings look alike once pitches are measured from the tonic.
+The opening, where the melody first lays out the makam's notes, carries as much information as the whole piece.
+The largest gains are on the makams a plain histogram confuses most (Ussak 44% to 62%, Muhayyer 56% to 72%).
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Audio] -->|YIN pitch tracker| B[Melody: one pitch every 3 ms]
+    B -->|rotate histogram against 20 templates| C[Tonic]
+    B --> D[Histograms of each third of the piece]
+    C --> D
+    D -->|logistic regression| E[Ranked makams]
+    B -->|pitch-class-gram| F[1D CNN]
+    F -->|average probabilities| E
+```
+
+1. **Melody.** The dataset provides melody pitch tracks; for new audio, a numpy implementation of YIN extracts one (error under 0.1 cent on synthetic audio)
+2. **Tonic.** Without a known tonic, the melody's pitch histogram is rotated around the octave against each makam's template; the best match gives the tonic (96.1% within 25 cents)
+3. **Makam.** Pitch histograms of each third of the piece, measured from the tonic, go into a logistic regression; a small CNN reading the melody in time order can be averaged in
+
+## How the results were checked
+
+* **No leakage between recordings of the same song.** 267 recordings share a composition with another one; cross-validation keeps every composition on one side of the split (union-find over MusicBrainz work ids)
+* **Seeds, not single runs.** Every claimed gain was repeated on 3 random splits; differences under ar. 2 points are treated as noise
+* **Nested cross-validation.** Regularization is chosen inside each training fold; CNN hyperparameters were fixed before testing
+* **Diagnosis before tuning.** The CNN's weak first result was traced to a train/test mismatch (3.7 points) and overfitting (more epochs raised training accuracy, not test accuracy) instead of being tuned blindly
+* **Out-of-domain test.** 1206 SymbTr scores of compositions absent from the recordings (248 overlapping ones removed)
+* **55 unit tests**, one command per figure and table
+
+## Trained on performances, tested on scores
+
+| | Unseen scores | Recordings (CV) |
+|---|---|---|
+| Tonic found | 80.5% | 96.1% |
+| Makam, tonic given | 69.2% | 77.4% |
+| Makam, tonic unknown | 55.7% (balanced 60.3%) | ar. 67% |
+
+Two separate failure modes: for Hicaz the tonic is placed a fourth too high (the makam is right 94% of the
+time once the tonic is given), while pairs that share a scale (Nihavent / Sultaniyegah, Ussak / Muhayyer)
+fail even with the right tonic. Notated and performed pitches differ by less than 10 cents for these makams,
+so the cues the model relies on are probably performance habits that scores do not contain.
+On scores, predictions made with more than 95% confidence are right only 73% of the time (100% on recordings):
+**confidence measured in one domain does not transfer to another.**
+
+## Try it
 
 ```bash
-# 1. get the dataset next to this repo (approx. 440 MB)
 git clone https://github.com/MTG/otmm_makam_recognition_dataset.git ../otmm_makam_recognition_dataset
-
-# 2. virtual environment + this package in editable mode
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-
-# 3. check everything works
-pytest -q
-python scripts/m1_explore.py --data ../otmm_makam_recognition_dataset
-python scripts/m2_baseline.py --data ../otmm_makam_recognition_dataset
-python scripts/m3_unknown_tonic.py --data ../otmm_makam_recognition_dataset
-python scripts/m4a_order_register.py --data ../otmm_makam_recognition_dataset
-
-# 4. neural network (M4b), needs PyTorch
-pip install -e ".[dl]"
-python scripts/m4b_cnn.py --data ../otmm_makam_recognition_dataset --quick
-python scripts/m4b_cnn.py --data ../otmm_makam_recognition_dataset --region 0.333 --ensemble
-
-# 5. error analysis, unseen scores and the audio demo (SymbTr scores, ar. 100 MB)
 git clone https://github.com/MTG/SymbTr.git ../SymbTr
-python scripts/m5_errors.py --data ../otmm_makam_recognition_dataset
-python scripts/m5_scores.py --data ../otmm_makam_recognition_dataset --symbtr ../SymbTr
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
 python scripts/m5_demo.py --data ../otmm_makam_recognition_dataset --symbtr ../SymbTr --makam Saba
 ```
 
-The first run parses 1,000 text files and saves binary copies in `cache/`; later runs are faster.
+The demo picks a score the model has never seen, synthesizes it to `demo/<name>.wav` (listen to it),
+extracts the melody from the audio and recognizes it:
 
-## Layout
+```
+Tonic     : true 276.7 Hz, estimated 276.8 Hz (right, off by +0 cents, octave ignored)
+True makam: Saba
+Ranking   :
+  1. Saba             100.0%  <- true
+  2. Beyati             0.0%
+  3. Huseyni            0.0%
+```
+
+Every experiment has its own script; the full list of commands and all results are in
+[docs/RESULTS.md](docs/RESULTS.md). The CNN needs `pip install -e ".[dl]"` (PyTorch, runs on Apple MPS).
+
+<details>
+<summary><b>Repository layout</b></summary>
 
 ```
 src/makam/data.py       load annotations, metadata and pitch tracks
-src/makam/features.py   Hz -> cents, octave folding, pitch-class histograms
-src/makam/classify.py   distances, kNN and nearest-template classifiers
+src/makam/features.py   Hz -> cents, octave folding, pitch histograms
+src/makam/classify.py   distances, kNN, nearest template, logistic regression
 src/makam/evaluate.py   composition groups, stratified and grouped cross-validation
 src/makam/tonic.py      tonic estimation by rotating histograms against templates
-src/makam/sequence.py   pitch-class-gram: the melody as a (pitch bins x time) array
+src/makam/sequence.py   pitch-class-gram: the melody as a (pitch x time) array
 src/makam/cnn.py        1D CNN and its training loop (PyTorch)
 src/makam/symbtr.py     read SymbTr scores, turn them into pitch tracks or audio
-src/makam/pitch.py      YIN pitch tracker: audio -> melody, same format as the dataset
+src/makam/pitch.py      YIN pitch tracker
 src/makam/pipeline.py   recognizer: melody in, tonic and ranked makams out
-scripts/m1_explore.py   dataset stats + figures in figures/
-scripts/m2_baseline.py  accuracy table (results/m2_accuracy.csv) + confusion matrix
-scripts/m3_unknown_tonic.py  tonic and makam without a given tonic + tonic error plot
-scripts/m4a_order_register.py  register vs melodic order, logistic regression (ar. 5 to 15 min)
-scripts/m4b_cnn.py      1D CNN on the melody in time order, same folds
-scripts/m5_errors.py    where the errors are, and is the confidence trustworthy
-scripts/m5_scores.py    trained on performances, tested on 1206 unseen scores
-scripts/m5_demo.py      score -> audio (.wav) -> YIN -> tonic and makam
+scripts/m1_explore.py ... m5_demo.py   one script per milestone
+scripts/make_readme_figures.py         the two charts on this page
 tests/                  unit tests
+docs/RESULTS.md         every experiment and number
 ```
-
-## Data
-
-OTMM Makam Recognition Dataset (Karakurt, Şentürk & Serra, 2016), CC BY-NC-SA 4.0:
-20 makams x 50 recordings, distributed as predominant-melody pitch tracks (no audio).
-
-## Results so far (tonic known, 10-fold CV, seed 0)
-
-| Method | Stratified | Grouped by composition |
-|---|---|---|
-| Nearest template, Bhattacharyya | 72.5% +- 3.1 | 73.0% +- 5.6 |
-| kNN k=10, Bhattacharyya | 70.5% +- 4.6 | 68.3% +- 4.0 |
-| kNN k=1, Bhattacharyya | 65.1% +- 4.2 | 62.0% +- 4.6 |
-| Published MORTY baseline (Karakurt et al. 2016) | 71.8% | not reported |
-
-Across seeds 0 to 2 the best method ranges from 71.9% to 73.3% (grouped), so
-differences under ar. 2 points are noise. The best configuration was picked
-among 18, which makes its number slightly optimistic.
-
-Effect of histogram resolution (template, Bhattacharyya, grouped CV): 72 to 73% for
-bins from 3.75 to 50 cents, but 56.8% with 100-cent bins (the piano grid). Forcing
-makam music onto 12 semitones costs ar. 16 points.
-
-## Tonic unknown (M3, nearest template + Bhattacharyya, seed 0)
-
-Test recordings are measured against an arbitrary 440 Hz reference, and the
-histogram is rotated to every position against every makam template.
-A tonic counts as correct within 25 cents, octave errors ignored.
-
-| Task | Stratified | Grouped | MORTY (2016) |
-|---|---|---|---|
-| Tonic, makam known | 96.4% | 96.1% | 95.8% |
-| Makam, tonic unknown | 67.7% | 66.9% | not reported |
-| Makam and tonic both right | 66.9% | 65.9% | 63.6% |
-
-MORTY's exact tonic tolerance may differ from ours, so compare loosely.
-Losing the tonic costs ar. 6 points of makam accuracy (73.0% -> 66.9%).
-Most wrong tonics are off by a fourth or a fifth (the most prominent non-tonic notes).
-The makam annotations' tonics agree with the corrected `otmm_tonic_dataset` within
-16 cents for all 998 shared recordings, so we keep them.
-
-## Does order help? (M4a, tonic known, logistic regression, grouped CV, seed 0)
-
-The histogram throws away WHEN notes happen (the seyir, the melodic path of a makam)
-and, once folded, WHERE in the register they happen. Same classifier, four inputs:
-
-| Input | Order | Register | Accuracy |
-|---|---|---|---|
-| F0 folded histogram (M2 input) | no | no | 73.3% |
-| F1 3-octave histogram | no | yes | 71.8% |
-| F2 folded histogram per third of the piece | yes | no | **77.4%** |
-| F3 3-octave histogram per third | yes | yes | 73.4% |
-
-Order helps: F2 beats F0 by +4.1 (seed 0), +3.1 (seed 1) and +3.7 points (seed 2),
-winning 7 to 8 of 10 folds. Register does not help, and adding it to order hurts
-(720 features for 900 training recordings). The biggest gains are on the pairs the
-histogram confuses: Ussak 44% -> 62%, Muhayyer 56% -> 72%, Nihavent 54% -> 70%.
-
-For ar. a quarter of recordings the annotated tonic is one octave away from the
-melody. Folded features never noticed; register features normalize the octave
-from the melody itself (`normalize_octave`).
-Results can move by a few tenths of a point between machines (parallel solver).
-
-Which part of the piece matters (same classifier, 15-cent folded histograms):
-
-| Input | Accuracy |
-|---|---|
-| Whole piece, one histogram | 72.6% |
-| Last third only | 61.4% |
-| First third only | **77.4%** |
-| 2 / 3 / 5 / 10 sections | 74.3% / 77.4% / 77.7% / 75.8% |
-
-The opening carries the information, the ending does not: every makam ends on its
-tonic (the karar), so endings look alike once measured from the tonic. More sections
-help up to 3 to 5, then the feature count (800 for 10 sections) starts to overfit.
-
-## Can a neural network learn the order? (M4b, 1D CNN, tonic known, grouped CV)
-
-The melody becomes a pitch-class-gram (48 bins of 25 cents x 0.2 s steps) plus a
-channel giving the position in the piece. A small 1D CNN (3 conv blocks, 64 filters)
-trains on random 30 s windows and predicts a recording by averaging its windows.
-Hyperparameters were fixed in advance, not tuned on test folds.
-
-| Model | Seed 0 | Seed 1 | Seed 2 |
-|---|---|---|---|
-| CNN, whole piece (train 84%) | 71.9% | | |
-| CNN, opening third only (train 94%) | 72.0% | 72.1% | 71.0% |
-| F2 per-third histograms (M4a) | 77.4% | 77.4% | 77.2% |
-| **CNN + F2, probabilities averaged** | **78.7%** | **79.7%** | **78.6%** |
-
-Diagnostics, each from one measurement:
-* Predicting a whole recording in one pass scored 68.2%; averaging 30 s windows
-  like in training scored 71.9%. The train/test mismatch cost 3.7 points
-* 100 epochs instead of 40 raised training accuracy (84% -> 91%) but not test
-  accuracy (71.5%): the network overfits, more training does not help
-* Alone, the CNN only matches a whole-piece histogram (72.6%). With ar. 900
-  training recordings it does not learn on its own what the per-third
-  histograms encode by design
-* Combined with F2 it adds a small but consistent gain: +1.3, +2.3 and +1.4
-  points on three seeds, 16 wins, 9 losses and 5 ties over 30 folds.
-  The gain does not come from the hardest pair (Ussak and Muhayyer get worse)
-
-## Error analysis (M5, F2, tonic known, grouped CV)
-
-Errors are spread evenly: by length 75 to 79%, by octave of the annotated tonic
-75 to 78%, by instrumentation 72% (solo instrumental) to 84% (duet).
-Confidence is meaningful on recordings: when the model is 80 to 95% sure it is
-right 96% of the time, above 95% it is right 100% of the time (76 recordings).
-
-## From performances to scores (M5)
-
-Trained on all 1000 recordings, tested on the SymbTr scores of the same 20 makams
-whose composition is NOT among the recordings (1206 of 1454; 248 removed as
-leakage). Each score becomes a pitch track at a random tonic between 180 and 330 Hz.
-
-| Task | Scores | Recordings (CV) |
-|---|---|---|
-| Tonic found (within 25 cents) | 80.5% | 96.1% |
-| Makam, tonic given (F2) | 69.2% | 77.4% |
-| Makam, tonic unknown (template + F2) | 55.7% | ar. 67% |
-| Balanced accuracy, tonic unknown | 60.3% | - |
-
-Two separate failure modes:
-* Tonic: Hicaz (45%) and Acemkurdi (17%) tonics are mostly placed a fourth too
-  high, on the dominant. With the tonic given, both are 83 to 94% correct
-* Same-scale pairs: Nihavent (17%, read as Sultaniyegah), Ussak (15%, read as
-  Beyati or Muhayyer), Mahur (40%, read as Acemasiran) fail even with the tonic
-  given. Notated and performed pitches differ by less than 10 cents here, so the
-  cues that separate these pairs in recordings are probably performance habits
-  (improvised openings, ornaments) that scores do not contain. A hypothesis, untested
-* Confidence does not transfer: on scores, predictions made with more than 95%
-  confidence are right only 73% of the time (100% on recordings)
-
-The demo synthesizes 60 s of an unseen score, extracts the melody with YIN
-(median error under 0.1 cent on synthetic audio) and recognizes it from the
-audio alone. Example runs (seed 1): Saba right at 100%; Hicaz wrong, tonic a
-fourth too high; Ussak tonic right but makam ranked 3rd after Beyati and Muhayyer.
+</details>
 
 ## Limitations
 
-* One dataset of 1000 recordings, 20 makams, predominant-melody tracks only (no audio)
-* Tonic octave is unreliable in ar. 25% of annotations; folded features avoid it
-* Scores are synthesized with exact pitches, no ornaments or vibrato
-* The demo has not been run on real recorded audio yet
+* One benchmark: 1000 recordings, 20 makams, melody tracks only (the audio is not distributed)
+* The annotated tonic is an octave away from the melody in ar. 25% of recordings; folded features are immune, others normalize the octave
+* Scores are synthesized with exact pitches, without ornaments or vibrato
+* The demo has not yet been run on real recorded audio
+
+## Data and credits
+
+* **OTMM Makam Recognition Dataset**: Karakurt, A., Şentürk, S., Serra, X. (2016). *MORTY: A Toolbox for Mode Recognition and Tonic Identification.* DLfM. CC BY-NC-SA 4.0
+* **SymbTr**: Karaosmanoğlu, M. K. (2012). *A Turkish Makam Music Symbolic Database for Music Information Retrieval: SymbTr.* ISMIR. CC BY-NC-SA 4.0
+* **YIN**: de Cheveigné, A., Kawahara, H. (2002). *YIN, a fundamental frequency estimator for speech and music.* JASA
+
+Neither dataset is included in this repository; both are cloned next to it.
